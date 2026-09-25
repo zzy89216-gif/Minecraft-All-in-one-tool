@@ -20,7 +20,9 @@
 #
 #  Optional environment overrides:
 #      CLEANUP_CONFIRM=yes        skip the interactive confirmation
-#      ALLOW_EXISTING_REMOTE=yes  push even if the remote branch already exists
+#      ALLOW_EXISTING_REMOTE=yes  merge commits already present on the remote branch instead of
+#                                 stopping (typical for the "Initial commit" GitHub creates)
+#      EXTRA_CLEAN_TARGETS="..."  extra absolute paths to delete during cleanup
 #      SKIP_CLEANUP=yes           upload only
 #      GIT_AUTHOR_NAME / GIT_AUTHOR_EMAIL
 # =============================================================================
@@ -226,6 +228,16 @@ else
   # 放在最后：脚本自身就在这个目录里。Linux 下删除已打开的文件不影响继续执行，
   # 但把它排在最后可以避免任何依赖该目录的后续操作。
   add_target "/tmp/omni-tool"                                # 构建副本（如有）
+
+  # 通过 EXTRA_CLEAN_TARGETS 传入额外的绝对路径（以空格分隔；路径中不要含空格）。
+  # 例如把另一个位置的工程副本一并清掉：
+  #   EXTRA_CLEAN_TARGETS="/path/to/copy" bash scripts/upload_and_cleanup.sh
+  if [ -n "${EXTRA_CLEAN_TARGETS:-}" ]; then
+    # shellcheck disable=SC2086
+    for extra in ${EXTRA_CLEAN_TARGETS}; do
+      add_target "${extra}"
+    done
+  fi
 
   printf '\n\033[1;33m'
   printf '┌────────────────────────────── 清理确认 ──────────────────────────────┐\n'
