@@ -167,11 +167,27 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 EXISTING_HEADS="$(git ls-remote --heads "${PUBLIC_URL}" 2>/dev/null || true)"
-if [ -n "${EXISTING_HEADS}" ] && [ "${ALLOW_EXISTING_REMOTE:-no}" != "yes" ]; then
-  warn "远程仓库已存在分支："
-  echo "${EXISTING_HEADS}" | sed 's/^/     /'
-  die "为安全起见已停止。确认要覆盖/追加时请用 ALLOW_EXISTING_REMOTE=yes 重新执行"
+REMOTE_HEAD_SHA="$(echo "${EXISTING_HEADS}" | awk -v b="refs/heads/${GITHUB_BRANCH}" '$2 == b {print $1}')"
+
+if [ -n "${REMOTE_HEAD_SHA}" ] && ! git merge-base --is-ancestor "${REMOTE_HEAD_SHA}" HEAD 2>/dev/null; then
+  # The remote branch holds commits we do not have. The usual cause is the "Initial commit"
+  # GitHub creates together with a new repository (README/LICENSE/.gitignore).
+  if [ "${ALLOW_EXISTING_REMOTE:-no}" != "yes" ]; then
+    warn "远程 ${GITHUB_BRANCH} 存在本地没有的提交："
+    echo "${EXISTING_HEADS}" | sed 's/^/     /'
+    die "为安全起见已停止（不会覆盖远程历史）。确认要合并时请用 ALLOW_EXISTING_REMOTE=yes 重新执行"
+  fi
+  ok "ALLOW_EXISTING_REMOTE=yes：把远程已有提交合并进本地历史（文件冲突时以本工程为准）"
+  git fetch -q "${AUTHENTICATED_URL}" "${GITHUB_BRANCH}"
+  git merge --allow-unrelated-histories -X ours --no-edit \
+    -m "chore: 合并远程 ${GITHUB_BRANCH} 的既有提交（冲突以本工程文件为准）" FETCH_HEAD
+  ok "已合并远程历史"
 fi
+
+# Recompute after a possible merge: the push and the verification below must use the final HEAD.
+COMMIT_COUNT="$(git rev-list --count HEAD)"
+LOCAL_SHA="$(git rev-parse HEAD)"
+ok "待推送：${COMMIT_COUNT} 个提交，HEAD=${LOCAL_SHA}"
 
 git push "${AUTHENTICATED_URL}" "HEAD:refs/heads/${GITHUB_BRANCH}"
 ok "推送完成"
