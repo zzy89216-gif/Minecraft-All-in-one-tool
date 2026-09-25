@@ -1,0 +1,10 @@
+{
+  "values": [
+    "omni_tool:omni_tool_wood",
+    "omni_tool:omni_tool_stone",
+    "omni_tool:omni_tool_iron",
+    "omni_tool:omni_tool_gold",
+    "omni_tool:omni_tool_diamond",
+    "omni_tool:omni_tool_netherite"
+  ]
+}
