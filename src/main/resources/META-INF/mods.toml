@@ -1,0 +1,41 @@
+# Omni Tool - mods.toml
+# Mod metadata for the Omni Tool (All-in-one tool) mod for Minecraft 1.20.1 (Forge 47.x).
+#
+# Placeholders written as a dollar sign followed by curly braces are expanded at build time by the
+# `processResources` task (see build.gradle). Everything else is plain TOML. This file is processed
+# as a Groovy template, so avoid literal dollar-brace sequences outside of real placeholders.
+
+modLoader="javafml" #mandatory
+loaderVersion="${loader_version_range}" #mandatory
+license="${mod_license}"
+# Issue tracker for this project
+issueTrackerURL="https://github.com/zzy89216-gif/Minecraft-All-in-one-tool/issues"
+
+[[mods]]
+modId="${mod_id}" #mandatory
+version="${mod_version}" #mandatory
+displayName="${mod_name}" #mandatory
+# Homepage shown in the mod list UI
+displayURL="https://github.com/zzy89216-gif/Minecraft-All-in-one-tool"
+# A text field displayed in the mod UI
+credits="Crafted for the community"
+authors="${mod_authors}"
+
+# The description text for the mod (multi line!) (#mandatory)
+description='''${mod_description}'''
+
+# Dependency: Forge (required, version range [47,))
+[[dependencies.${mod_id}]]
+    modId="forge"
+    mandatory=true
+    versionRange="${forge_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+# Dependency: Minecraft (required, 1.20.1.x)
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
