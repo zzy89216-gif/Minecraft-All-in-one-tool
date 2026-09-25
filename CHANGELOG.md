@@ -9,19 +9,53 @@
 
 ## [Unreleased]
 
-### Changed
-- 文档不再写死 Minecraft / Forge 版本号：README 的徽章改为版本无关，新增「兼容性」与「版本策略」两节，
-  版本信息统一以 `gradle.properties` 为唯一来源，为后续扩展更多游戏版本做准备。
-- README 移除了「目录 · Table of contents」章节。
-- `HANDOFF.md` 增加"版本范围说明"，明确文中出现的版本号均指当前检出的版本线。
-- `CONTRIBUTING.md` 的开发环境要求改为引用 `gradle.properties` / `build.gradle`，不再写死版本。
-
 ### Planned
 - 可插拔的配方克隆策略接口，支持自定义 `RecipeSerializer`
 - 运行时资源包：为动态材料生成独立贴图与翻译
 - Forge Config：把平衡系数、攻速、tag 开关变成可配置项
 - 更多语种（ja_jp / ko_kr / ru_ru 等）
 - 支持更多 Minecraft 版本线（多分支维护）
+
+---
+
+## [2.0.0] - 2025-09-25
+
+本版本的主题是**模组兼容层**：把"与其他模组协作"从"碰巧能用"变成**有契约、有自检、有测试**的工程能力，
+首个适配对象是附魔类模组 **Enchanting Infuser（附魔灌注台）**。
+同时把附魔接受规则从物品类中抽出，成为可被运行时自检与单元测试共同验证的单一来源。
+
+### Added
+- **Enchanting Infuser 兼容**（[CurseForge](https://www.curseforge.com/minecraft/mc-mods/enchanting-infuser)）：
+  - 附魔灌注台现在可以给全能工具施加**镐/斧/铲共有附魔 + 武器附魔**（锋利、抢夺、火焰附加…），
+    与附魔台、铁砧的行为完全一致。
+  - `mods.toml` 新增对 `enchantinginfuser` 的**可选依赖**声明
+    （`mandatory=false`、`ordering="AFTER"`、`side="BOTH"`）：本模组不硬依赖它，
+    但加载顺序与兼容关系对玩家可见；未安装灌注台时行为完全不变。
+  - 新增 `compat/EnchantingInfuserCompat`：检测到灌注台时，在公共初始化阶段自动执行**兼容自检**——
+    对每个全能工具复现灌注台的两个判定问题（`ItemStack#isEnchantable()` 与
+    `canApplyAtEnchantingTable`），并将结论写入日志；发现契约不一致时输出 WARN 与具体条目。
+    自检为只读诊断，从不抛异常、不改变游戏行为。
+- 新增 `compat/EnchantmentCompatibility`：附魔接受契约的**单一来源**
+  （接受 `DIGGER` / `WEAPON` / `BREAKABLE` / `VANISHABLE`，其余一律拒绝），
+  `OmniToolItem#canApplyAtEnchantingTable` 改为委托它。
+- 新增单元测试 `EnchantmentCompatibilityTest`：逐个枚举全部 14 个 `EnchantmentCategory`，
+  断言"只接受这四个"、拒绝护甲/弓/弩/三叉戟/钓竿/可穿戴，并覆盖 `null` 入参。
+
+### Changed
+- `OmniToolItem` 的附魔判定不再内联写死 `EnchantmentCategory.WEAPON` 判断，改为委托给 `EnchantmentCompatibility`。
+- 文档不再写死 Minecraft / Forge 版本号：README 徽章改为版本无关，新增「兼容性」与「版本策略」两节，
+  版本信息统一以 `gradle.properties` 为唯一来源，为后续扩展更多游戏版本做准备。
+- README 新增「模组兼容」小节（含兼容矩阵与 Enchanting Infuser 适配说明），移除了「目录」章节。
+- `HANDOFF.md` 新增 §4「模组兼容层（Enchanting Infuser）」：判定路径原理图、我们做的四件事、
+  为什么不做更强兼容、以及对方更新后的重新验证步骤；原 §4~§8 顺延为 §5~§9，引用同步更新。
+- `HANDOFF.md` 增加「版本范围说明」，明确文中出现的版本号均指当前检出的版本线。
+- `CONTRIBUTING.md` 的开发环境要求改为引用 `gradle.properties` / `build.gradle`，不再写死版本。
+- 版本号提升至 **2.0.0**（新增兼容层与附魔契约抽象属于对外行为增强，故做次版本线的整体提升）。
+
+### Verified
+- `./gradlew build` 通过；`./gradlew test` 覆盖材料推导、材料名解析与附魔契约共三组测试。
+- 兼容性依据为对方 1.20.1 分支源码的全量核对：其 Forge 侧判定只经过
+  `canApplyAtEnchantingTable` / `canEnchant`，未直接读取 `EnchantmentCategory`。
 
 ---
 
@@ -79,9 +113,9 @@ Minecraft **1.20.1** / Forge **47.x** / Java **17**（版本常量见 `gradle.pr
 - `docs/ARCHITECTURE.md`、`docs/RECIPES.md`：分层架构细节与配方/数值推导。
 
 ### Known Issues
-- 自定义 `RecipeSerializer` 产出的镐子无法被克隆，仅记录日志并跳过（见 `HANDOFF.md` §5.1）。
-- 运行时注册的物品使用原版模型的兜底映射，尚无独立贴图与翻译（见 `HANDOFF.md` §5.2）。
-- 复用原版 Tier 的模组材料会映射到该原版 Tier 对应的全能工具（见 `HANDOFF.md` §5.3）。
+- 自定义 `RecipeSerializer` 产出的镐子无法被克隆，仅记录日志并跳过（见 `HANDOFF.md` §6.1）。
+- 运行时注册的物品使用原版模型的兜底映射，尚无独立贴图与翻译（见 `HANDOFF.md` §6.2）。
+- 复用原版 Tier 的模组材料会映射到该原版 Tier 对应的全能工具（见 `HANDOFF.md` §6.3）。
 
 ---
 

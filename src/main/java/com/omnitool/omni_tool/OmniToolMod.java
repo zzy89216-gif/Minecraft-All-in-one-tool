@@ -1,6 +1,7 @@
 package com.omnitool.omni_tool;
 
 import com.mojang.logging.LogUtils;
+import com.omnitool.omni_tool.compat.EnchantingInfuserCompat;
 import com.omnitool.omni_tool.registry.ModItems;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
@@ -59,6 +60,8 @@ public final class OmniToolMod {
             ModItems.init();
             LOGGER.info("[OmniTool] Common setup complete: {} static + {} dynamic Omni Tool(s)",
                     ModItems.staticTools().size(), ModItems.dynamicTools().size());
+            // Optional integration: verify the enchantment contract against whatever is installed.
+            EnchantingInfuserCompat.runSelfCheck();
         });
     }
 }

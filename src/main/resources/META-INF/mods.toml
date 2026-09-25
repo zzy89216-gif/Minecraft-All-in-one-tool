@@ -39,3 +39,16 @@ description='''${mod_description}'''
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
+
+# Optional integration: Enchanting Infuser (https://www.curseforge.com/minecraft/mc-mods/enchanting-infuser)
+# The mod is NOT required. Declaring it lets the loader start us after it, shows the relationship in
+# the mod list, and documents the integration for players. Enchanting Infuser decides which
+# enchantments an item accepts by asking the item itself through Forge's
+# canApplyAtEnchantingTable hook, which this mod implements, so the two work together out of the box.
+# See com.omnitool.omni_tool.compat.EnchantingInfuserCompat and HANDOFF.md.
+[[dependencies.${mod_id}]]
+    modId="enchantinginfuser"
+    mandatory=false
+    versionRange="[8,)"
+    ordering="AFTER"
+    side="BOTH"

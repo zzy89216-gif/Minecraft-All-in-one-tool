@@ -2,6 +2,7 @@ package com.omnitool.omni_tool.item;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
+import com.omnitool.omni_tool.compat.EnchantmentCompatibility;
 import com.omnitool.omni_tool.registry.OmniToolMaterial;
 import net.minecraft.network.chat.Component;
 import net.minecraft.tags.BlockTags;
@@ -13,7 +14,6 @@ import net.minecraft.world.item.DiggerItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Tier;
 import net.minecraft.world.item.enchantment.Enchantment;
-import net.minecraft.world.item.enchantment.EnchantmentCategory;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.TierSortingRegistry;
 
@@ -190,13 +190,23 @@ public class OmniToolItem extends DiggerItem {
     // -------------------------------------------------------------------------------------------
 
     /**
-     * Forge hook used by both the enchanting table and the anvil. {@code DIGGER}, {@code BREAKABLE}
-     * and {@code VANISHABLE} enchantments are already accepted by the {@code DiggerItem} default;
-     * {@code WEAPON} is added so the tool can also take sword enchantments (requirement 6).
+     * Forge hook used by the enchanting table, the anvil, and by third party enchantment UIs that
+     * go through the vanilla/Forge query path - notably
+     * <a href="https://www.curseforge.com/minecraft/mc-mods/enchanting-infuser">Enchanting
+     * Infuser</a>, whose {@code ForgeAbstractions#canApplyAtEnchantingTable} ends up here.
+     *
+     * <p>{@code DIGGER}, {@code BREAKABLE} and {@code VANISHABLE} enchantments are already accepted
+     * by the {@code DiggerItem} default (which is consulted through {@code super}); the accepted set
+     * is widened to include {@code WEAPON} so the tool can also take sword enchantments
+     * (requirement 6).
+     *
+     * <p>The accepted set itself lives in
+     * {@link com.omnitool.omni_tool.compat.EnchantmentCompatibility} so that the contract is shared
+     * with the runtime self-check and with the unit tests instead of being hard coded here.
      */
     @Override
     public boolean canApplyAtEnchantingTable(ItemStack stack, Enchantment enchantment) {
-        return enchantment.category == EnchantmentCategory.WEAPON
+        return EnchantmentCompatibility.accepts(enchantment.category)
                 || super.canApplyAtEnchantingTable(stack, enchantment);
     }
 

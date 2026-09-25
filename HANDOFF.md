@@ -11,10 +11,10 @@
 **所有版本常量只写在 [`gradle.properties`](gradle.properties)**
 （`minecraft_version` / `forge_version` / `mapping_version`），构建与数据生成都从那里取值。
 
-因此本文中出现的具体版本号（例如 §4 的 API 陷阱清单、缓存 jar 路径）指的是
+因此本文中出现的具体版本号（例如 §5 的 API 陷阱清单、缓存 jar 路径）指的是
 **你当前检出的这条版本线**，不是"这个模组只支持这一个版本"。
 新增一条版本线时：改 `gradle.properties` → 按该版本修正被改名的原版 API → 更新 `README.md` 的兼容性表。
-§4 的清单结构可以直接当作移植对照表使用。
+§5 的清单结构可以直接当作移植对照表使用。
 
 ---
 
@@ -176,7 +176,84 @@ ClientboundUpdateRecipesPacket packet = new ClientboundUpdateRecipesPacket(...);
 
 ---
 
-## 4. 1.20.1 / Forge 47 的实际 API 陷阱（血泪清单）
+## 4. 模组兼容层（Enchanting Infuser）
+
+本节记录 Omni Tool 与 [Enchanting Infuser](https://www.curseforge.com/minecraft/mc-mods/enchanting-infuser)
+（附魔灌注台，mod id `enchantinginfuser`）的集成方式。它同时是"本模组如何与其他模组协作"的范例：
+以后接入别的模组可以照这个结构办理（先读对方源码确认判定路径 → 抽契约 → 加自检 → 补测试 → 写文档）。
+
+### 4.1 对方是怎么判断的（结论：判定入口在物品自己身上）
+
+灌注台在 `EnchantmentUtil#getAvailableEnchantments` 里问两个问题，两个问题都由**物品**回答：
+
+```
+① 这个附魔能作用到这个物品上吗？
+   ForgeAbstractions#canApplyAtEnchantingTable(enchantment, stack)
+     └─ Enchantment#canApplyAtEnchantingTable(ItemStack)            // Forge 补丁新增
+        └─ ItemStack#canApplyAtEnchantingTable(Enchantment)         // Forge 补丁新增
+           └─ IForgeItem#canApplyAtEnchantingTable(stack, enchantment)   ← 本模组覆盖它
+   （等价路径：Enchantment#canEnchant(stack) 也被 Forge 补丁转接到同一个钩子）
+
+② 灌注台允许修改这个物品吗？
+   ServerConfig.ModifiableItems 的三种模式（UNENCHANTED / ALL / FULL_DURABILITY）
+   都要求 ItemStack#isEnchantable() == true
+```
+
+- 对方在 Forge 侧**全程没有直接读 `EnchantmentCategory`**。逐一核对过 1.20.1 分支源码：
+  `EnchantmentCategory` 在 Common/Forge 代码中出现 **0 次**；唯一的 `category.canEnchant(...)`
+  出现在它的 **Fabric** 分支（Fabric 没有 Forge 那个钩子，只能查品类）。
+- 因此不需要注册物品标签、白名单或任何"兼容注册"——我们的物品本身就给出了答案。
+- 副作用提示：灌注台默认 `allowModifyingEnchantments = UNENCHANTED`，只允许改**未附魔**物品；
+  要编辑已附魔的全能工具需把该项改成 `ALL`。这是对方的配置行为，与本模组无关。
+
+### 4.2 我们做了什么
+
+| 层次 | 内容 |
+|---|---|
+| `mods.toml` | 声明**可选依赖** `enchantinginfuser`（`mandatory=false`、`ordering="AFTER"`、`side="BOTH"`）：不硬依赖，但加载顺序与兼容关系对玩家可见 |
+| 契约 | 附魔接受集合抽到 `compat/EnchantmentCompatibility`（接受 `DIGGER/WEAPON/BREAKABLE/VANISHABLE`，其余拒绝），`OmniToolItem#canApplyAtEnchantingTable` 只做委托 |
+| 运行时自检 | `compat/EnchantingInfuserCompat`：检测到灌注台时，对每个全能工具复现上面两个问题并把结论写进日志 |
+| 单元测试 | `compat/EnchantmentCompatibilityTest`：逐个枚举全部 14 个 `EnchantmentCategory`，钉死"只接受这四个" |
+
+自检通过时的日志：
+
+```
+[OmniTool] Enchanting Infuser compatibility verified: 6 tool(s) x 43 enchantment(s);
+           accepted categories [DIGGER, WEAPON, BREAKABLE, VANISHABLE]; weapon enchantments 7
+           (all answered through canApplyAtEnchantingTable)
+```
+
+不匹配时输出 WARN 并列出具体是哪个物品 × 哪个附魔，把**静默的兼容性回归**变成可见问题
+（例如 Forge 改了默认实现、或对方改了判定路径）。自检从不抛异常，最坏情况只是少一条日志。
+
+### 4.3 为什么不做"更强"的兼容
+
+- **不注册 `EnchantStatsProvider`**：那是给 Apotheosis 这类**替换整个附魔系统**的模组准备的；
+  本模组不替换附魔系统，注册进去只会误导使用者（也会抢占优先级）。
+- **不硬依赖、不 `compileOnly` 对方 jar**：兼容只依赖原版 + Forge 的公开钩子，
+  对方更新或卸载都不影响本模组编译与加载。所以 `EnchantingInfuserCompat` 里**没有一行**对方 API。
+- **不在物品上"假装是剑"**：`SwordItem` 无法多继承，而真正的判定入口是 Forge 钩子；
+  那些写死 `instanceof SwordItem`（或直接查 `EnchantmentCategory`）的模组，本来就无法被任何
+  多工具模组满足——这一点已如实写在 README 的兼容性表里，不夸大兼容范围。
+
+### 4.4 对方改动后如何重新验证
+
+1. 打开灌注台 1.20.1 源码的 `EnchantmentUtil#getAvailableEnchantments`，
+   确认它仍然只用 `canEnchant` / `canApplyAtEnchantingTable` 两条路径；
+2. 确认 `ServerConfig.ModifiableItems` 仍然要求 `ItemStack#isEnchantable()`；
+3. 起一个装了灌注台的实例，看日志里有没有
+   `[OmniTool] Enchanting Infuser compatibility verified: ...`；
+4. 若自检报 mismatch：先核对 `EnchantmentCompatibility` 的集合是否仍与需求一致，
+   再确认 Forge 的 `IForgeItem#canApplyAtEnchantingTable` 默认实现是否变化。
+
+> 对方代码位置（`1.20.1` 分支）：
+> `Common/src/main/java/fuzs/enchantinginfuser/util/EnchantmentUtil.java`、
+> `Forge/src/main/java/fuzs/enchantinginfuser/core/ForgeAbstractions.java`、
+> `Common/src/main/java/fuzs/enchantinginfuser/config/ServerConfig.java`。
+
+---
+
+## 5. 1.20.1 / Forge 47 的实际 API 陷阱（血泪清单）
 
 写这个项目时踩到的坑，全都已修正。接手人改代码前建议先读一遍 —— 这些点靠"记忆"几乎必然写错。
 
@@ -203,7 +280,7 @@ ClientboundUpdateRecipesPacket packet = new ClientboundUpdateRecipesPacket(...);
 
 ---
 
-## 5. 已知局限性
+## 6. 已知局限性
 
 诚实列表 —— 每一条都明确写了影响范围与规避方式。
 
@@ -214,7 +291,7 @@ ClientboundUpdateRecipesPacket packet = new ClientboundUpdateRecipesPacket(...);
 - **规避**：该模组可以自己提供 `omni_tool_<material>` 的配方；数据生成配方优先级更高，
   克隆器发现有配方能产出该物品时会自动跳过（不会冲突）。
 - **改进方向**：为 `SmithingRecipe` / `StonecutterRecipe` 增加克隆分支，或提供
-  "配方类型 → 克隆器" 的可注册接口（见 §6.2）。
+  "配方类型 → 克隆器" 的可注册接口（见 §7.2）。
 
 ### 5.2 运行时注册的物品无法数据生成模型与语言
 - **原因**：`runData` 运行时其他模组并不存在，因此不知道会有哪些材料。
@@ -226,14 +303,14 @@ ClientboundUpdateRecipesPacket packet = new ClientboundUpdateRecipesPacket(...);
 - **影响面**：图标是借用原版模型的（不会出现紫黑丢失材质），但"锡镐"的图标看起来像对应等级的
   原版全能工具；名字里保留了源镐子的名字，读起来略啰嗦。
 - **改进方向**：若模组数量可控，改为"提供数据生成时期的材料清单"配置项；
-  或给动态物品生成运行时资源包（`PackResources`），实现真正的独立贴图与翻译（见 §6.3）。
+  或给动态物品生成运行时资源包（`PackResources`），实现真正的独立贴图与翻译（见 §7.3）。
 
 ### 5.3 复用原版 Tier 的模组材料会映射到原版全能工具
 - **现象**：某模组的"钢镐"如果直接复用 `Tiers.IRON`，则它对应 `omni_tool_iron`，
   而该物品已经有数据生成配方，于是克隆被跳过。
 - **为什么这样设计**：Tier 是唯一可靠的"材料强度"信息来源；按 Tier 匹配是保守且可预测的行为，
   也避免了重复配方。这类材料的作者若想要独立的全能工具，应当定义自己的 Tier。
-- **改进方向**：支持按"配方材料物品"而非 Tier 建立映射（见 §6.1）。
+- **改进方向**：支持按"配方材料物品"而非 Tier 建立映射（见 §7.1）。
 
 ### 5.4 不做"掉落之外的采矿特化"
 - 支持镐/斧/铲三类 tag，**不包含** `mineable/hoe`（锄）与剪刀类。这符合需求描述，
@@ -246,11 +323,11 @@ ClientboundUpdateRecipesPacket packet = new ClientboundUpdateRecipesPacket(...);
 
 ### 5.6 未做服务端配置化
 - 目前平衡系数（0.8）、攻速（1.4）、配方形状都是**编译期常量**。
-- 若要支持整合包作者调参，需要引入 Forge Config（见 §6.4）。
+- 若要支持整合包作者调参，需要引入 Forge Config（见 §7.4）。
 
 ---
 
-## 6. 后续可扩展方向
+## 7. 后续可扩展方向
 
 按"投入产出比"排序，前两项是最值得先做的。
 
@@ -274,7 +351,7 @@ public interface RecipeCloneStrategy<R extends Recipe<?>> {
 ### 6.3 运行时资源包，给动态物品真正的贴图与翻译
 实现 `PackResources`，通过 `AddPackFindersEvent` 注入一个内存中的资源包，
 为动态物品生成 `models/item/<id>.json` 与 `lang/*.json`。
-- 好处：彻底解决 §5.2。
+- 好处：彻底解决 §6.2。
 - 注意：`AddPackFindersEvent` 的时机早于注册表冻结，需要把"要生成哪些条目"缓存下来，
   在资源包被查询时惰性生成。
 
@@ -293,7 +370,7 @@ public interface RecipeCloneStrategy<R extends Recipe<?>> {
 ### 6.6 兼容性测试矩阵
 当前未做任何模组联动实测。建议至少覆盖：
 - 自定义 Tier 的模组（验证 §3 pass 2 的注册路径）
-- 工作台 + 锻造台配方并存的模组（验证 §5.1 的降级路径）
+- 工作台 + 锻造台配方并存的模组（验证 §6.1 的降级路径）
 - JEI / REI（验证克隆配方在配方浏览器中可见）
 - 服务端 + 多客户端（验证同步只发生一次、不重复）
 
@@ -306,16 +383,16 @@ public interface RecipeCloneStrategy<R extends Recipe<?>> {
 
 ---
 
-## 7. 排错指南
+## 8. 排错指南
 
 | 症状 | 可能原因 | 检查点 |
 |---|---|---|
 | 物品能拿到但挖方块没掉落 | 掉落判定只覆盖了一个 tag | `OmniToolItem#canHarvestWith` 是否被两个重载都调用 |
-| 模组材料没有生成全能工具 | 该镐子的 Tier 已被原版六 Tier 之一覆盖（§5.3），或镐子的 `Tier` 为 null | 开 `debug` 日志看 `Dynamic recipe pass` 统计行 |
+| 模组材料没有生成全能工具 | 该镐子的 Tier 已被原版六 Tier 之一覆盖（§6.3），或镐子的 `Tier` 为 null | 开 `debug` 日志看 `Dynamic recipe pass` 统计行 |
 | 控制台没有克隆日志 | 事件没触发（比如不是服务端） | 确认 `OnDatapackSyncEvent` 在 FORGE bus 上、且玩家真的加入了 |
 | 动态物品是紫黑方块 | 客户端兜底模型没注册成功 | `OmniToolClientSetup` 的 warn 日志；确认在客户端运行 |
 | `./gradlew` 报找不到 `GradleWrapperMain` | 文件系统损坏了 wrapper jar（本项目在 `/sdcard` 上踩过） | 重新下载 `gradle/wrapper/gradle-wrapper.jar` |
-| `processResources` 报 Groovy 模板错误 | `mods.toml` 里出现了字面量 `${...}` | 见 §4 第 12 条 |
+| `processResources` 报 Groovy 模板错误 | `mods.toml` 里出现了字面量 `${...}` | 见 §5 第 12 条 |
 | 构建时提示找不到 `setup` 任务 | ForgeGradle 6 没有这个任务 | 直接用 `runData` / `runClient` / `build` |
 
 日志关键字：
@@ -328,7 +405,7 @@ public interface RecipeCloneStrategy<R extends Recipe<?>> {
 
 ---
 
-## 8. 发布清单（给维护者）
+## 9. 发布清单（给维护者）
 
 - [ ] 改 `gradle.properties` 的 `mod_version`
 - [ ] 更新 `CHANGELOG.md`

@@ -41,6 +41,7 @@
 | 8 | **动态配方克隆** | 服务端配方加载后克隆镐子配方，只替换输出物，材料与摆放位置完全一致 |
 | 9 | **数据生成** | 原版六个 Tier 的配方 / 模型 / 中英语言文件 / Tag 全部由 `runData` 产出 |
 | 10 | **绝不崩溃** | 找不到对应 Tier、遇到无法识别的配方类型时优雅跳过并打日志 |
+| 11 | **模组兼容** | 适配 Enchanting Infuser（附魔灌注台），并在启动时自动校验附魔兼容契约 |
 
 ---
 
@@ -66,7 +67,27 @@
 
 > 移植提示：不同 MC 版本之间最大的差异集中在
 > `DiggerItem` / `Tier` / `MINEABLE_WITH_*` 的命名与掉落判定重载上。
-> [`HANDOFF.md`](HANDOFF.md) §4 已经把当前版本的准确签名与陷阱逐条列出，可作为移植对照表。
+> [`HANDOFF.md`](HANDOFF.md) §5 已经把当前版本的准确签名与陷阱逐条列出，可作为移植对照表。
+
+### 模组兼容 · Mod compatibility
+
+| 模组 | 状态 | 说明 |
+|---|---|---|
+| [Enchanting Infuser](https://www.curseforge.com/minecraft/mc-mods/enchanting-infuser) | ✅ 已适配（可选依赖） | 附魔灌注台可对全能工具施加**镐/斧/铲共有附魔 + 武器附魔**；启动时自动执行兼容自检并输出结果 |
+| 其他附魔类模组（走 `canApplyAtEnchantingTable` / `canEnchant` 的） | ✅ 自动兼容 | 只要是经由原版/Forge 标准查询路径判断"某附魔能否作用于某物品"，就会得到与附魔台一致的结果 |
+| 添加新材料的模组 | ✅ 自动兼容 | 见[动态材料支持](#动态材料支持--dynamic-material-support) |
+| 直接读 `EnchantmentCategory#canEnchant(Item)`（绕过 Forge 钩子）的模组 | ⚠️ 取决于对方实现 | 该路径无法按物品挂钩，全能工具不会被视为剑；这类模组极少，且多为 Fabric 专属实现 |
+
+**Enchanting Infuser 适配说明**
+
+- 我方**不硬依赖**它：`mods.toml` 中声明为可选依赖（`ordering="AFTER"`），没装也完全可用。
+- 兼容是**自动成立**的：灌注台判断附魔能否作用到物品时，Forge 侧最终调用
+  `IForgeItem#canApplyAtEnchantingTable(stack, enchantment)`，而这正是本模组实现的方法，
+  所以武器附魔（锋利、抢夺、火焰附加…）会正常出现在灌注台界面里。
+- 2.0.0 起，若检测到灌注台已安装，启动时会自动跑一次**兼容自检**：对每个全能工具逐一验证
+  "物品可附魔"与"附魔判定与契约一致"，并在日志中给出结论，把"应该能用"变成可验证的事实。
+- **实用提示**：灌注台默认配置 `allowModifyingEnchantments = UNENCHANTED`，只允许修改"尚未附魔"的物品。
+  若想在已附魔的全能工具上继续增删附魔，把该项改为 `ALL`。
 
 ---
 

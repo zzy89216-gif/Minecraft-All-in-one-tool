@@ -53,6 +53,8 @@
 | `OmniToolForgeEvents` | event | 服务端注入克隆配方 | `OnDatapackSyncEvent`，先于原版同步包 |
 | `OmniToolModEvents` | event | 加入创造模式物品栏 | `BuildCreativeModeTabContentsEvent` |
 | `OmniToolClientSetup` | client | 动态物品 → 原版模型兜底映射 | `ItemModelShaper`，在 `enqueueWork` 中执行 |
+| `EnchantmentCompatibility` | compat | 附魔接受契约的单一来源 | 纯函数，可单测；`OmniToolItem` 只做委托 |
+| `EnchantingInfuserCompat` | compat | Enchanting Infuser 的启动自检 | 不引用对方任何 API，只用原版 + Forge 钩子 |
 | `DataGenerators` + 各 Provider | datagen | 资源生成 | 双语语言文件、融合形状配方、物品 Tag |
 
 ---
@@ -104,6 +106,25 @@
             └─ 原版紧接着发送 ClientboundUpdateRecipesPacket → 全端可见
 ```
 
+### 3.4 判定"某附魔能否作用于本工具"（含 Enchanting Infuser）
+
+```
+任何调用方（附魔台 / 铁砧 / Enchanting Infuser / 其它模组）
+  └─ Enchantment#canApplyAtEnchantingTable(ItemStack)      // Forge 补丁
+     或 Enchantment#canEnchant(ItemStack)                  // Forge 也转接到同一钩子
+     └─ ItemStack#canApplyAtEnchantingTable(Enchantment)   // Forge 补丁
+        └─ IForgeItem#canApplyAtEnchantingTable(stack, enchantment)
+           └─ OmniToolItem#canApplyAtEnchantingTable
+              ├─ EnchantmentCompatibility.accepts(category)   // 契约：DIGGER/WEAPON/BREAKABLE/VANISHABLE
+              └─ super.canApplyAtEnchantingTable(...)         // DiggerItem 默认（品类判定）
+
+启动期（仅在检测到 Enchanting Infuser 时）
+  └─ EnchantingInfuserCompat.runSelfCheck()
+     ├─ 对每个全能工具：stack.isEnchantable()            ← 对方 ModifiableItems 的门槛
+     └─ 对每个已注册附魔：canApplyAtEnchantingTable(stack) 是否 == 契约判定
+        └─ 一致 → INFO 汇总；不一致 → WARN + 具体条目
+```
+
 ---
 
 ## 4. 设计取舍
@@ -134,6 +155,21 @@ Forge 在注册阶段结束后冻结注册表，之后无法再新增物品。
 数据生成时其他模组还不存在，无法为它们生成模型文件。
 不做兜底就会出现紫黑方块；做兜底只需一次映射注册，成本极低。
 
+### 4.7 为什么兼容层只做"契约 + 自检"，而不用硬依赖
+接入 Enchanting Infuser 时，一个"看起来更彻底"的做法是把它加进 `dependencies`
+（`compileOnly`）并直接调用它的 API。没有这样做，理由是：
+
+- **兼容的判定入口本来就在我们这边**：对方经由 Forge 的 `canApplyAtEnchantingTable` 钩子询问物品，
+  我们已经实现了该钩子，硬依赖不会带来任何额外能力，只会引入一个"对方一改就编译失败"的耦合。
+- **依赖应当反映真实需要**：本模组不替换附魔系统，也不需要注册对方的 `EnchantStatsProvider`
+  （那是 Apotheosis 这类替换整套系统的模组才需要的），注册进去只会误导使用者。
+- **可验证性优先于"看起来集成"**：真正缺的是"怎么知道它还兼容"。所以改为：
+  抽出可单测的 `EnchantmentCompatibility` 契约 + 启动期自检 `EnchantingInfuserCompat`
+  （只用原版/Forge API，零对方依赖），把兼容性变成一个会打日志、会被测试覆盖的事实。
+
+这个模式可以直接复用到下一个要兼容的模组：先读对方源码确认判定路径 → 抽成契约 →
+加自检与单测 → 在 `mods.toml` 里声明可选依赖。
+
 ---
 
 ## 5. 扩展点速查
@@ -142,8 +178,10 @@ Forge 在注册阶段结束后冻结注册表，之后无法再新增物品。
 |---|---|
 | 调整平衡系数 / 攻速 | `OmniToolMaterial.BALANCE_FACTOR` / `SWORD_ATTACK_SPEED_MODIFIER` |
 | 增加锄（`mineable/hoe`）支持 | `OmniToolItem#isOmniMineable` + `getDestroySpeed` + `OmniToolMaterial` 增加 hoeSpeed |
-| 支持新的配方类型 | `OmniToolRecipeCloner#cloneOne` 增加分支（或实现 §HANDOFF 6.2 的策略接口） |
+| 支持新的配方类型 | `OmniToolRecipeCloner#cloneOne` 增加分支（或实现 §HANDOFF 7.2 的策略接口） |
 | 改名 / 加语种 | `ModLanguageProvider#displayName` + `DataGenerators` 增加一个 provider |
 | 换配方形状 | `ModRecipeProvider#buildOmniToolRecipe` 的 `pattern(...)` |
 | 关闭动态层 | 移除 `DynamicOmniToolRegistrar` 的 `@Mod.EventBusSubscriber`（或加配置开关） |
+| 改附魔接受范围 | `EnchantmentCompatibility` 的集合（记得同步更新 `EnchantmentCompatibilityTest`） |
+| 兼容新的模组 | 照 §4.7 的模式：确认对方判定路径 → 抽契约 → 加自检 → 声明可选依赖 → 更新 README 兼容性表 |
 | 换贴图 | 覆盖 `src/generated/.../models/item/*.json` 或资源包替换 |
