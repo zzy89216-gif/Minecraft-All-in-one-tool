@@ -3,31 +3,19 @@
 > 一把工具，四种用途：镐、斧、铲、剑合一。  
 > One tool, four jobs: pickaxe, axe, shovel and sword in a single item.
 
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.20.1-3c8527.svg)](#)
-[![Forge](https://img.shields.io/badge/Forge-47.x-e04e14.svg)](#)
-[![Java](https://img.shields.io/badge/Java-17-007396.svg)](#)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Mod Loader](https://img.shields.io/badge/Mod%20Loader-Forge-e04e14.svg)](#兼容性--compatibility)
+[![Java](https://img.shields.io/badge/Java-17%2B-007396.svg)](#兼容性--compatibility)
+[![Minecraft](https://img.shields.io/badge/Minecraft-%E8%A7%81%E5%85%BC%E5%AE%B9%E6%80%A7%E8%A1%A8-3c8527.svg)](#兼容性--compatibility)
 
----
-
-## 目录 · Table of contents
-
-- [项目简介](#项目简介--introduction)
-- [核心特性](#核心特性--features)
-- [数值一览](#数值一览--stats)
-- [合成配方](#合成配方--recipe)
-- [动态材料支持](#动态材料支持--dynamic-material-support)
-- [安装](#安装--installation)
-- [从源码构建](#从源码构建--building-from-source)
-- [目录结构](#目录结构--project-layout)
-- [文档](#文档--documentation)
-- [许可证](#许可证--license)
+> 具体支持的 Minecraft / Forge 版本见下方 [兼容性](#兼容性--compatibility)；工程内的版本常量集中在
+> [`gradle.properties`](gradle.properties)，本文件不再重复写死版本号。
 
 ---
 
 ## 项目简介 · Introduction
 
-**Omni Tool（全能工具）** 是一个 Minecraft **1.20.1 / Forge 47.x** 模组，添加了一种"万能工具"：
+**Omni Tool（全能工具）** 是一个 Minecraft **Forge** 模组，添加了一种"万能工具"：
 同一个物品同时具备**镐、斧、铲**的挖掘能力与**剑**的攻击能力。
 
 与"把四种工具拼在一起"的常见做法不同，本项目把两个难点当作一等公民：
@@ -51,8 +39,34 @@
 | 6 | **四类附魔通吃** | 镐/斧/铲共有附魔（效率、精准采集、时运…）+ 武器附魔（锋利、抢夺、火焰附加…） |
 | 7 | **动态材料支持** | 运行时扫描全部 `PickaxeItem`，为未知 Tier 自动注册全能工具 |
 | 8 | **动态配方克隆** | 服务端配方加载后克隆镐子配方，只替换输出物，材料与摆放位置完全一致 |
-| 9 | **数据生成** | 六个原版 Tier 的配方 / 模型 / 中英语言文件 / Tag 全部由 `runData` 产出 |
+| 9 | **数据生成** | 原版六个 Tier 的配方 / 模型 / 中英语言文件 / Tag 全部由 `runData` 产出 |
 | 10 | **绝不崩溃** | 找不到对应 Tier、遇到无法识别的配方类型时优雅跳过并打日志 |
+
+---
+
+## 兼容性 · Compatibility
+
+| 项目 | 支持范围 | 说明 |
+|---|---|---|
+| Minecraft | 见 `gradle.properties` 的 `minecraft_version` | 当前工程以此版本为目标 |
+| 模组加载器 | **Forge** | 版本见 `gradle.properties` 的 `forge_version` |
+| JDK | **17+** | 由构建脚本的 `java.toolchain` 指定，不依赖本机默认 JDK |
+| 运行环境 | 单人 / 局域网 / 专用服务器 | 客户端与服务端都需要安装 |
+
+### 版本策略 · Versioning strategy
+
+本项目按"Minecraft 大版本一线一支"的方式维护，方便逐步覆盖更多版本：
+
+- `main` 永远指向**最新支持**的那条线；
+- 每条历史支持线保留独立分支（例如 `1.20.1`），互不干扰；
+- **所有版本常量只写在 [`gradle.properties`](gradle.properties)**
+  （`minecraft_version`、`forge_version`、`mapping_version` 等），构建脚本与资源生成都从那里取值；
+- 新增一条版本线时只需要：改 `gradle.properties` → 按该版本修正被改名的原版 API →
+  更新本节的兼容性表。README 里不写死具体版本号，就是为了让这一步不需要四处改文案。
+
+> 移植提示：不同 MC 版本之间最大的差异集中在
+> `DiggerItem` / `Tier` / `MINEABLE_WITH_*` 的命名与掉落判定重载上。
+> [`HANDOFF.md`](HANDOFF.md) §4 已经把当前版本的准确签名与陷阱逐条列出，可作为移植对照表。
 
 ---
 
@@ -71,6 +85,7 @@
 
 > 对比：钻石镐 8.0、钻石斧 5.0、钻石铲 6.0、钻石剑伤害 6 / 攻速 1.6。
 > 全能工具在**每一种**用途上都比专用工具慢，这正是"多功能但不专精"的平衡点。
+> 数值只随目标版本的 `Tiers` 变化，公式本身与版本无关。
 
 ---
 
@@ -129,14 +144,14 @@
 
 **玩家：**
 
-1. 安装 Minecraft **1.20.1** 与 **Forge 47.x**。
-2. 把 `omni_tool-1.0.0.jar` 放进 `.minecraft/mods/`。
+1. 安装受支持的 Minecraft 版本与对应版本的 **Forge**（见[兼容性](#兼容性--compatibility)）。
+2. 把 `omni_tool-<版本>.jar` 放进 `.minecraft/mods/`。
 3. 启动游戏即可。支持单人、局域网与专用服务器；客户端与服务端都需要安装。
 
 **开发者：**
 
 ```bash
-./gradlew build          # 产物：build/libs/omni_tool-1.0.0.jar
+./gradlew build          # 产物：build/libs/
 ./gradlew runClient      # 启动带模组的客户端
 ./gradlew runData        # 生成资源（配方/模型/语言/Tag）
 ./gradlew test           # 运行单元测试
@@ -146,12 +161,15 @@
 
 ## 从源码构建 · Building from source
 
-| 依赖 | 版本 |
+用到的版本全部由 [`gradle.properties`](gradle.properties) 决定，无需在别处修改：
+
+| 依赖 | 取值来源 |
 |---|---|
-| JDK | 17（必须） |
-| Gradle | 由 `gradlew` 自动下载 8.1.1 |
-| Minecraft | 1.20.1 |
-| Forge | 47.2.0（`gradle.properties` 可改） |
+| JDK | `java.toolchain`（`build.gradle`），当前为 **17** |
+| Gradle | 由 `gradlew` 自动下载（版本见 `gradle/wrapper/gradle-wrapper.properties`） |
+| Minecraft | `minecraft_version`（`gradle.properties`） |
+| Forge | `forge_version`（`gradle.properties`） |
+| 映射 | `mapping_channel` / `mapping_version`（`gradle.properties`） |
 
 ```bash
 git clone https://github.com/zzy89216-gif/Minecraft-All-in-one-tool.git
@@ -174,8 +192,8 @@ cd Minecraft-All-in-one-tool
 
 ```
 Minecraft-All-in-one-tool/
-├── build.gradle               # ForgeGradle 6 构建脚本
-├── gradle.properties          # 版本、模组元数据
+├── build.gradle               # ForgeGradle 构建脚本
+├── gradle.properties          # 版本与模组元数据的唯一来源
 ├── settings.gradle
 ├── docs/
 │   ├── ARCHITECTURE.md        # 分层架构与数据流
@@ -213,8 +231,8 @@ Minecraft-All-in-one-tool/
 
 | 文档 | 内容 |
 |---|---|
-| [`README.md`](README.md) | 项目介绍、数值、配方、构建方式（本文件） |
-| [`HANDOFF.md`](HANDOFF.md) | **交接文档**：架构、动态克隆原理图、已知局限、后续方向 |
+| [`README.md`](README.md) | 项目介绍、兼容性、数值、配方、构建方式（本文件） |
+| [`HANDOFF.md`](HANDOFF.md) | **交接文档**：架构、动态克隆原理图、API 陷阱、已知局限、后续方向 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 版本变更记录（Keep a Changelog 格式） |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 代码风格、提交规范、PR 流程 |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 分层架构与关键调用链 |

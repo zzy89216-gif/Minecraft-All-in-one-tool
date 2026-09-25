@@ -8,9 +8,10 @@
 
 | 项目 | 要求 |
 |---|---|
-| JDK | 17（必须，Forge 47.x 不支持更低版本） |
+| JDK | 见 `build.gradle` 的 `java.toolchain`（该属性由目标 Minecraft 版本决定） |
 | IDE | IntelliJ IDEA 或 Eclipse，导入为 **Gradle 工程** |
-| Gradle | 使用仓库自带的 `gradlew`（8.1.1），不要用系统 Gradle |
+| Gradle | 使用仓库自带的 `gradlew`，不要用系统 Gradle（版本见 `gradle/wrapper/gradle-wrapper.properties`） |
+| Minecraft / Forge | 见 `gradle.properties`；README 的兼容性表列出各支持线 |
 | 网络 | 首次构建需要访问 Forge / Mojang / Maven Central |
 
 ```bash

@@ -5,13 +5,26 @@
 
 ---
 
+## 版本范围说明（先读这一段）
+
+本项目按"Minecraft 大版本一线一支"维护：`main` 指向最新支持线，历史支持线各自保留分支。
+**所有版本常量只写在 [`gradle.properties`](gradle.properties)**
+（`minecraft_version` / `forge_version` / `mapping_version`），构建与数据生成都从那里取值。
+
+因此本文中出现的具体版本号（例如 §4 的 API 陷阱清单、缓存 jar 路径）指的是
+**你当前检出的这条版本线**，不是"这个模组只支持这一个版本"。
+新增一条版本线时：改 `gradle.properties` → 按该版本修正被改名的原版 API → 更新 `README.md` 的兼容性表。
+§4 的清单结构可以直接当作移植对照表使用。
+
+---
+
 ## 0. 五分钟快速上手
 
 ```bash
 git clone https://github.com/zzy89216-gif/Minecraft-All-in-one-tool.git
 cd Minecraft-All-in-one-tool
 
-./gradlew build       # 编译 + 单元测试 + 产出 build/libs/omni_tool-1.0.0.jar
+./gradlew build       # 编译 + 单元测试 + 产出 build/libs/ 下的 jar
 ./gradlew test        # 只跑单元测试
 ./gradlew runData     # 重新生成 src/generated/resources（配方/模型/语言/Tag）
 ./gradlew runClient   # 启动带模组的客户端（需要图形环境）

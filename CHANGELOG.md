@@ -9,17 +9,26 @@
 
 ## [Unreleased]
 
+### Changed
+- 文档不再写死 Minecraft / Forge 版本号：README 的徽章改为版本无关，新增「兼容性」与「版本策略」两节，
+  版本信息统一以 `gradle.properties` 为唯一来源，为后续扩展更多游戏版本做准备。
+- README 移除了「目录 · Table of contents」章节。
+- `HANDOFF.md` 增加"版本范围说明"，明确文中出现的版本号均指当前检出的版本线。
+- `CONTRIBUTING.md` 的开发环境要求改为引用 `gradle.properties` / `build.gradle`，不再写死版本。
+
 ### Planned
 - 可插拔的配方克隆策略接口，支持自定义 `RecipeSerializer`
 - 运行时资源包：为动态材料生成独立贴图与翻译
 - Forge Config：把平衡系数、攻速、tag 开关变成可配置项
 - 更多语种（ja_jp / ko_kr / ru_ru 等）
+- 支持更多 Minecraft 版本线（多分支维护）
 
 ---
 
 ## [1.0.0] - 2025-09-25
 
-首个正式版本。目标平台 Minecraft **1.20.1** / Forge **47.x** / Java **17**。
+首个正式版本，也是本项目的第一条支持线。该版本线的目标平台为
+Minecraft **1.20.1** / Forge **47.x** / Java **17**（版本常量见 `gradle.properties`）。
 
 ### Added
 
@@ -63,8 +72,8 @@
   `.env` 及任何密钥文件。
 
 **文档**
-- `README.md`：项目介绍、特性、数值表、配方展示、安装与构建方式、目录结构。
-- `HANDOFF.md`：架构说明、动态克隆文字版原理图、1.20.1 API 陷阱清单、
+- `README.md`：项目介绍、特性、兼容性与版本策略、数值表、配方展示、安装与构建方式、目录结构。
+- `HANDOFF.md`：架构说明、动态克隆文字版原理图、当前版本线的原版 API 陷阱清单、
   已知局限性、后续扩展方向、排错指南、发布清单。
 - `CONTRIBUTING.md`：代码风格、提交规范、测试与 PR 流程。
 - `docs/ARCHITECTURE.md`、`docs/RECIPES.md`：分层架构细节与配方/数值推导。
