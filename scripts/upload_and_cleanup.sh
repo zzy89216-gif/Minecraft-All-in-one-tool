@@ -212,7 +212,14 @@ if [ "${SKIP_CLEANUP:-no}" = "yes" ]; then
   warn "SKIP_CLEANUP=yes，跳过清理"
 else
   CLEAN_TARGETS=()
-  add_target() { [ -e "$1" ] && CLEAN_TARGETS+=("$1"); }
+  # NOTE: this function must always return 0. Called as a plain statement under `set -e`, a
+  # non-zero return (which `[ -e ]` produces for a missing path) would abort the script.
+  add_target() {
+    if [ -e "$1" ]; then
+      CLEAN_TARGETS+=("$1")
+    fi
+    return 0
+  }
 
   add_target "${ENV_FILE}"                                   # 含 token，必须删
   add_target "${PROJECT_DIR}/build"                          # Gradle 构建产物
@@ -225,9 +232,7 @@ else
   add_target "/tmp/omni-setup.log"
   add_target "/tmp/tasks-list.log"
   add_target "/tmp/cp.gradle"
-  # 放在最后：脚本自身就在这个目录里。Linux 下删除已打开的文件不影响继续执行，
-  # 但把它排在最后可以避免任何依赖该目录的后续操作。
-  add_target "/tmp/omni-tool"                                # 构建副本（如有）
+  add_target "/tmp/omni-tool"                                # 其它位置的构建副本（如有）
 
   # 通过 EXTRA_CLEAN_TARGETS 传入额外的绝对路径（以空格分隔；路径中不要含空格）。
   # 例如把另一个位置的工程副本一并清掉：
@@ -239,28 +244,42 @@ else
     done
   fi
 
+  # 工程目录本身放在最后：脚本就在这个目录里。Linux 下删除已打开的文件不影响继续执行，
+  # 但排在最后可以避免任何依赖该目录的后续操作。
+  add_target "${PROJECT_DIR}"
+
   printf '\n\033[1;33m'
   printf '┌────────────────────────────── 清理确认 ──────────────────────────────┐\n'
   printf '│ 远程仓库已确认收到全部提交，接下来将删除以下本地内容：              │\n'
   printf '└─────────────────────────────────────────────────────────────────────┘\n'
   printf '\033[0m'
-  for target in "${CLEAN_TARGETS[@]}"; do
+  if [ "${#CLEAN_TARGETS[@]}" -eq 0 ]; then
+    warn "没有找到需要清理的路径（可能已经清理过）"
+  fi
+  for target in ${CLEAN_TARGETS[@]+"${CLEAN_TARGETS[@]}"}; do
     printf '   - %s\n' "${target}"
   done
   printf '\n'
 
   if [ "${CLEANUP_CONFIRM:-}" != "yes" ]; then
     printf '确认清理以上内容？输入 yes 继续（其它任何输入都会取消）：'
-    read -r answer
+    read -r answer || answer=""
     [ "${answer}" = "yes" ] || { warn "已取消清理，本地文件保持不变"; exit 0; }
   else
     ok "CLEANUP_CONFIRM=yes，跳过交互确认"
   fi
 
-  for target in "${CLEAN_TARGETS[@]}"; do
-    rm -rf -- "${target}"
-    ok "已删除 ${target}"
+  FAILED_TARGETS=()
+  for target in ${CLEAN_TARGETS[@]+"${CLEAN_TARGETS[@]}"}; do
+    # A single undeletable path must not stop the rest of the cleanup, but it is reported.
+    if rm -rf -- "${target}" 2>/dev/null && [ ! -e "${target}" ]; then
+      ok "已删除 ${target}"
+    else
+      warn "删除失败（请手动处理）：${target}"
+      FAILED_TARGETS+=("${target}")
+    fi
   done
+  CLEAN_FAILURES="${#FAILED_TARGETS[@]}"
 fi
 
 # -----------------------------------------------------------------------------
@@ -270,6 +289,8 @@ log "[7/7] 完成"
 CLEANUP_REPORT="构建产物 / Gradle 缓存 / run 目录 / .env / 临时文件"
 if [ "${SKIP_CLEANUP:-no}" = "yes" ]; then
   CLEANUP_REPORT="（已跳过）"
+elif [ "${CLEAN_FAILURES:-0}" != "0" ]; then
+  CLEANUP_REPORT="${CLEANUP_REPORT}（其中 ${CLEAN_FAILURES} 项删除失败，见上方警告）"
 fi
 cat <<EOF
 
