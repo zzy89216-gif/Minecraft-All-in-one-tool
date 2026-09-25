@@ -52,10 +52,19 @@
 - `CONTRIBUTING.md` 的开发环境要求改为引用 `gradle.properties` / `build.gradle`，不再写死版本。
 - 版本号提升至 **2.0.0**（新增兼容层与附魔契约抽象属于对外行为增强，故做次版本线的整体提升）。
 
+### Fixed
+- 修复兼容自检的日志计数：原实现把「工具 × 附魔」的**组合数**当成附魔总数输出，
+  会打印出 `weapon enchantments 42` 这类与注册表实际数量不符的值（6 个工具时被重复计数 6 次）。
+  现在先读取一次附魔注册表，日志明确区分「注册表附魔数 / 实际校验的组合数 / 注册表中的武器附魔数」。
+  该缺陷只影响日志可读性，自检的判定逻辑与结果本身是正确的。
+
 ### Verified
-- `./gradlew build` 通过；`./gradlew test` 覆盖材料推导、材料名解析与附魔契约共三组测试。
+- `./gradlew build` 通过；`./gradlew test` 运行 30 个用例，覆盖材料推导（5）、材料名解析（5）与
+  附魔契约（20，含全部 14 个 `EnchantmentCategory` 的参数化校验）。
 - 兼容性依据为对方 1.20.1 分支源码的全量核对：其 Forge 侧判定只经过
   `canApplyAtEnchantingTable` / `canEnchant`，未直接读取 `EnchantmentCategory`。
+- 已发布 jar 开箱核对：zip 结构完整、无测试类、`mods.toml` 占位符全部展开且 version 与
+  `gradle.properties` 一致、附件 sha256 与本地构建一致。
 
 ---
 

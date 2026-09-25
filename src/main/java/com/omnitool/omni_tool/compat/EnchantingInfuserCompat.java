@@ -90,15 +90,16 @@ public final class EnchantingInfuserCompat {
             Report report = verify();
             if (report.mismatches() == 0) {
                 LOGGER.info("[OmniTool] Enchanting Infuser compatibility verified: {} tool(s) x {} "
-                                + "enchantment(s); accepted categories {}; weapon enchantments {} "
+                                + "registered enchantment(s) = {} checked combination(s); "
+                                + "accepted categories {}; weapon enchantments in registry {} "
                                 + "(all answered through canApplyAtEnchantingTable)",
-                        report.tools(), report.enchantments(),
+                        report.tools(), report.enchantments(), report.combinations(),
                         EnchantmentCompatibility.describeAcceptedCategories(), report.weaponEnchantments());
             } else {
                 LOGGER.warn("[OmniTool] Enchanting Infuser compatibility self-check found {} "
                                 + "mismatch(es); details: {}", report.mismatches(), report.problems());
                 LOGGER.warn("[OmniTool] This usually means an enchantment contract change upstream. "
-                        + "See HANDOFF.md section 'Enchanting Infuser compatibility'.");
+                        + "See HANDOFF.md section '模组兼容层（Enchanting Infuser）'.");
             }
         } catch (Throwable throwable) {
             // Diagnostics must never be able to break startup.
@@ -109,34 +110,45 @@ public final class EnchantingInfuserCompat {
     /**
      * Replays Enchanting Infuser's two questions for every Omni Tool.
      *
+     * <p>The enchantment registry is read once up front, so the reported numbers are unambiguous:
+     * {@code enchantments} is how many enchantments are registered, {@code combinations} is how many
+     * item/enchantment pairs were actually tested ({@code tools * enchantments}), and
+     * {@code weaponEnchantments} is a property of the registry, not of the loop.
+     *
      * @return a report; never {@code null}
      */
     static Report verify() {
         List<String> problems = new ArrayList<>();
-        int tools = 0;
-        int enchantments = 0;
+
+        List<Enchantment> registered = new ArrayList<>();
         int weaponEnchantments = 0;
+        for (Enchantment enchantment : BuiltInRegistries.ENCHANTMENT) {
+            registered.add(enchantment);
+            if (enchantment.category == EnchantmentCategory.WEAPON) {
+                weaponEnchantments++;
+            }
+        }
+
+        int tools = 0;
+        int combinations = 0;
         int mismatches = 0;
 
         for (Item item : ModItems.allTools()) {
             ItemStack stack = item.getDefaultInstance();
-            tools++;
-
             if (stack.isEmpty()) {
                 continue;
             }
+            tools++;
+
             if (!stack.isEnchantable()) {
                 mismatches++;
                 addProblem(problems, "tool " + nameOf(item) + " reports isEnchantable() == false; "
                         + "Enchanting Infuser would refuse to modify it");
             }
 
-            for (Enchantment enchantment : BuiltInRegistries.ENCHANTMENT) {
-                enchantments++;
+            for (Enchantment enchantment : registered) {
+                combinations++;
                 EnchantmentCategory category = enchantment.category;
-                if (category == EnchantmentCategory.WEAPON) {
-                    weaponEnchantments++;
-                }
                 boolean expected = EnchantmentCompatibility.accepts(category);
                 boolean actual = enchantment.canApplyAtEnchantingTable(stack);
                 if (expected != actual) {
@@ -146,7 +158,8 @@ public final class EnchantingInfuserCompat {
                 }
             }
         }
-        return new Report(tools, enchantments, weaponEnchantments, mismatches, problems);
+        return new Report(tools, registered.size(), combinations, weaponEnchantments, mismatches,
+                problems);
     }
 
     private static void addProblem(List<String> problems, String problem) {
@@ -169,12 +182,14 @@ public final class EnchantingInfuserCompat {
      * Outcome of the self-check.
      *
      * @param tools               number of Omni Tools inspected
-     * @param enchantments        number of enchantment/tool combinations tested
-     * @param weaponEnchantments  number of weapon enchantments seen in the registry
+     * @param enchantments        number of enchantments present in the registry
+     * @param combinations        number of item/enchantment pairs actually tested
+     *                            ({@code tools * enchantments})
+     * @param weaponEnchantments  number of weapon enchantments in the registry
      * @param mismatches          number of contract violations found
      * @param problems            up to {@link #MAX_REPORTED_PROBLEMS} human readable examples
      */
-    record Report(int tools, int enchantments, int weaponEnchantments, int mismatches,
-                  List<String> problems) {
+    record Report(int tools, int enchantments, int combinations, int weaponEnchantments,
+                  int mismatches, List<String> problems) {
     }
 }
