@@ -35,9 +35,9 @@ cd Minecraft-All-in-one-tool
 | 步骤 | 命令 | 期望结果 |
 |---|---|---|
 | 1 | `./gradlew compileJava` | BUILD SUCCESSFUL |
-| 2 | `./gradlew test` | 10 个测试全部通过（`OmniToolMaterialTest` 5 个 + `DynamicOmniToolRegistrarTest` 5 个） |
+| 2 | `./gradlew test` | 30 个测试全部通过（`OmniToolMaterialTest` 5 + `DynamicOmniToolRegistrarTest` 5 + `EnchantmentCompatibilityTest` 20） |
 | 3 | `./gradlew runData` | `src/generated/resources` 下 6 配方 + 6 推进 + 6 模型 + 2 语言 + 1 Tag |
-| 4 | `./gradlew build` | `build/libs/omni_tool-1.0.0.jar` 生成 |
+| 4 | `./gradlew build` | `build/libs/` 下生成 `omni_tool-<mod_version>.jar`（jar 内 `mods.toml` 的 version 应等于 `gradle.properties` 的 `mod_version`） |
 | 5 | 进游戏 `/give @s omni_tool:omni_tool_diamond` | 物品可用，挖石头/木头/泥土都有正确速度与掉落 |
 
 > 首次运行会由 ForgeGradle 下载并反编译 Minecraft（数分钟）。`runData` / `runClient` 会自动
@@ -218,9 +218,9 @@ ClientboundUpdateRecipesPacket packet = new ClientboundUpdateRecipesPacket(...);
 自检通过时的日志：
 
 ```
-[OmniTool] Enchanting Infuser compatibility verified: 6 tool(s) x 43 enchantment(s);
-           accepted categories [DIGGER, WEAPON, BREAKABLE, VANISHABLE]; weapon enchantments 7
-           (all answered through canApplyAtEnchantingTable)
+[OmniTool] Enchanting Infuser compatibility verified: 6 tool(s) x 43 registered enchantment(s)
+           = 258 checked combination(s); accepted categories [DIGGER, WEAPON, BREAKABLE, VANISHABLE];
+           weapon enchantments in registry 7 (all answered through canApplyAtEnchantingTable)
 ```
 
 不匹配时输出 WARN 并列出具体是哪个物品 × 哪个附魔，把**静默的兼容性回归**变成可见问题
@@ -412,5 +412,19 @@ public interface RecipeCloneStrategy<R extends Recipe<?>> {
 - [ ] `./gradlew clean build` 全绿
 - [ ] `./gradlew runData` 后确认 `src/generated` 无意外 diff
 - [ ] 在真实客户端里跑一遍：合成、挖掘、附魔、修理、配方书
-- [ ] 打 tag：`git tag -a v1.0.0 -m "Omni Tool 1.0.0"` 并推送
-- [ ] 附件上传 `build/libs/omni_tool-<version>.jar`
+- [ ] 打 tag：`git tag -a v<mod_version> -m "Omni Tool <mod_version>"` 并推送（例如 `v2.0.0`）
+- [ ] **在 GitHub 上创建 Release 并上传 jar 附件**（这一步容易漏：只推代码不会出现在 Releases 页面）
+  ```bash
+  # 建 release（用 tag 名，body 用 CHANGELOG 对应段落）
+  curl -X POST -H "Authorization: Bearer $GITHUB_TOKEN" \
+    -H "Accept: application/vnd.github+json" \
+    https://api.github.com/repos/<owner>/<repo>/releases \
+    -d '{"tag_name":"v<mod_version>","name":"Omni Tool <mod_version>","body":"见 CHANGELOG"}'
+  # 上传 jar 附件（<release_id> 取上一步返回的 id）
+  curl -X POST -H "Authorization: Bearer $GITHUB_TOKEN" \
+    -H "Content-Type: application/java-archive" \
+    --data-binary "@build/libs/omni_tool-<mod_version>.jar" \
+    "https://uploads.github.com/repos/<owner>/<repo>/releases/<release_id>/assets?name=omni_tool-<mod_version>.jar"
+  ```
+- [ ] 校验附件：`GET /releases/tags/v<mod_version>` 返回的 `assets[].digest` 应与
+  `sha256sum build/libs/omni_tool-<mod_version>.jar` 一致
